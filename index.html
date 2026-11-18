@@ -79,10 +79,21 @@
   .zoomer button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 16px; }
   .zoomer .rs { font-size: 11px; width: auto; height: 28px; padding: 0 8px; }
 
-  .legend { padding: 10px 14px 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--ink-2); display: grid; gap: 6px; }
-  .legend .ln { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
-  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
-  .legend svg { width: 18px; height: 16px; display: inline-block; }
+  .legend { padding: 14px 16px 14px; border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink-2); }
+  .lg-head { display: flex; flex-wrap: wrap; gap: 2px 12px; justify-content: space-between; align-items: baseline; margin: 0 0 10px; }
+  .lg-head h3 { margin: 0; font-size: 13px; color: var(--ink); letter-spacing: .02em; }
+  .lg-head span { font-size: 11.5px; color: var(--ink-3); }
+  .lg-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 22px; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); margin-bottom: 10px; }
+  .lg-col h5 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
+  .lg-item { display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 8px; margin-bottom: 6px; line-height: 1.3; }
+  .lg-item svg { width: 30px; height: 22px; overflow: visible; }
+  .lg-sizes { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px; }
+  .lg-sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .lg-sizes figcaption { font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .lg-sizes svg { overflow: visible; display: block; }
+  .lg-note { font-size: 11.5px; color: var(--ink-3); margin: 2px 0 8px; }
+  @media (max-width: 1020px) { .lg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .lg-grid { grid-template-columns: 1fr; } }
   details.about { margin-top: 2px; }
   details.about summary { cursor: pointer; color: var(--ink); font-weight: 500; font-size: 12.5px; }
   details.about .body { padding: 6px 0 2px; color: var(--ink-2); font-size: 12.5px; max-width: 900px; }
@@ -245,8 +256,8 @@
           <button id="zrs" class="rs" aria-label="Reset view and highlight">Reset</button>
         </div>
         <div class="legend">
-          <div class="ln" id="legAreas"></div>
-          <div class="ln" id="legShapes"></div>
+          <div class="lg-head"><h3>Legend</h3><span>Sizes shown as they appear on the graph before zooming</span></div>
+          <div class="lg-grid" id="lgGrid"></div>
           <details class="about" id="about">
             <summary>About this data</summary>
             <div class="body">
@@ -598,7 +609,7 @@
   var zoom = d3.zoom().scaleExtent([0.8, 6]).extent([[0, 0], [W, H]]).translateExtent([[-250, -250], [W + 250, H + 250]])
     .on("zoom", function (ev) { zl.attr("transform", ev.transform); kNow = ev.transform.k; svg.classed("zoomed", kNow >= 1.9); screenFix(); });
   svg.call(zoom).on("dblclick.zoom", null);
-  window.addEventListener("resize", function () { small = window.matchMedia("(max-width: 700px)").matches; screenFix(); if (state.view === "programs") drawTimeline(); });
+  window.addEventListener("resize", function () { small = window.matchMedia("(max-width: 700px)").matches; screenFix(); drawLegend(); if (state.view === "programs") drawTimeline(); });
   screenFix();
   function resetZoom() { svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity); }
   document.getElementById("zin").onclick = function () { svg.transition().duration(220).call(zoom.scaleBy, 1.5); };
@@ -613,14 +624,33 @@
     svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(W / 2, H / 2).scale(k).translate(-(x0 + x1) / 2, -(yA + yB) / 2));
   }
 
-  // Legend
-  document.getElementById("legAreas").innerHTML = AREAS.map(function (a) { return "<span class='k'><span class='sq' style='background:" + COLOR[a] + "'></span>" + a + (a === "Cross-program" ? " <span class='muted'>(not one DDF area)</span>" : "") + "</span>"; }).join("");
-  document.getElementById("legShapes").innerHTML =
-    "<span class='k'><svg viewBox='0 0 18 16'><rect x='2' y='1' width='14' height='14' rx='3' fill='#b5b3ab'/></svg>program · size = amount</span>" +
-    "<span class='k'><svg viewBox='0 0 18 16'><rect x='2' y='1' width='14' height='14' rx='3' fill='#b5b3ab'/><circle cx='9' cy='8' r='2.2' fill='#fff'/></svg>pooled fund</span>" +
-    "<span class='k'><svg viewBox='0 0 18 16'><rect x='2' y='1' width='14' height='14' rx='3' fill='#fff' stroke='#8a8983' stroke-width='1.5' stroke-dasharray='3 2'/></svg>amount not found</span>" +
-    "<span class='k'><svg viewBox='0 0 18 16'><circle cx='6' cy='8' r='3' fill='#8a8983'/><circle cx='13' cy='8' r='5' fill='#8a8983'/></svg>funder · size = endowment</span>" +
-    "<span class='k'><svg viewBox='0 0 18 16'><circle cx='9' cy='8' r='5' fill='#8a8983' fill-opacity='.12' stroke='#8a8983' stroke-width='1.5'/></svg>endowment not found</span>";
+  // Legend: four labelled groups; size keys use the graph's own scales at the current on-screen size.
+  function drawLegend() {
+    var px = (svg.node().getBoundingClientRect().width || W) / W;
+    var item = function (icon, label) { return "<div class='lg-item'><svg viewBox='0 0 30 22'>" + icon + "</svg><span>" + label + "</span></div>"; };
+    var grey = "#9a988f";
+    var colors = "<div class='lg-col'><h5>Color = DDF program area</h5>" + AREAS.map(function (a) {
+      return item("<rect x='8' y='4' width='14' height='14' rx='3' fill='" + COLOR[a] + "'/>", a + (a === "Cross-program" ? " <span class='muted'>(a fund spanning areas)</span>" : ""));
+    }).join("") + "</div>";
+    var sq = function (amt) { var s2 = progSide(amt) * px; return "<figure><svg width='" + s2 + "' height='" + s2 + "'><rect width='" + s2 + "' height='" + s2 + "' rx='" + Math.max(2, 5 * px) + "' fill='" + grey + "'/></svg><figcaption>$" + amt + "M</figcaption></figure>"; };
+    var progs = "<div class='lg-col'><h5>Squares = programs</h5><div class='lg-sizes'>" + sq(5) + sq(50) + sq(500) + "</div><p class='lg-note'>Size = program amount</p>" +
+      item("<rect x='7' y='3' width='16' height='16' rx='3' fill='" + grey + "'/><circle cx='15' cy='11' r='2.6' fill='#fff'/>", "White center = pooled fund") +
+      item("<rect x='7' y='3' width='16' height='16' rx='3' fill='#fff' stroke='" + grey + "' stroke-width='1.6' stroke-dasharray='3 2'/>", "Dashed = amount not found") + "</div>";
+    var dot = function (v, lab) { var r = endR(v) * px, d = 2 * r + 2; return "<figure><svg width='" + d + "' height='" + d + "'><circle cx='" + (d / 2) + "' cy='" + (d / 2) + "' r='" + r + "' fill='" + grey + "'/></svg><figcaption>" + lab + "</figcaption></figure>"; };
+    var funds = "<div class='lg-col'><h5>Dots = funders</h5><div class='lg-sizes'>" + dot(0.5, "$0.5B") + dot(5, "$5B") + dot(15, "$15B") + "</div><p class='lg-note'>Size = endowment</p>" +
+      item("<circle cx='15' cy='11' r='6.5' fill='" + grey + "' fill-opacity='.14' stroke='" + grey + "' stroke-width='1.6'/>", "Pale, hollow = endowment not found (not “small”)") +
+      item("<path d='M15 4.5 A6.5 6.5 0 0 0 15 17.5 Z' fill='" + COLOR.Arts + "'/><path d='M15 4.5 A6.5 6.5 0 0 1 15 17.5 Z' fill='" + COLOR.Environment + "'/>", "Split color = backs programs in two areas") +
+      item("<circle cx='15' cy='11' r='8' fill='var(--hub)' stroke='#fff' stroke-width='2'/>", "Black = Doris Duke Foundation") + "</div>";
+    var lines = "<div class='lg-col'><h5>Lines and labels</h5>" +
+      item("<line x1='2' y1='11' x2='28' y2='11' stroke='#c9c7bf' stroke-width='1.4'/>", "Funder is a member of the program") +
+      item("<line x1='2' y1='11' x2='28' y2='11' stroke='#8f8d86' stroke-width='2'/>", "DDF to each of its programs") +
+      item("<line x1='2' y1='11' x2='28' y2='11' stroke='#8f8d86' stroke-width='2' stroke-dasharray='4 3'/>", "Dashed = program amount not found") +
+      item("<circle cx='15' cy='11' r='5' fill='" + COLOR.Arts + "'/><circle cx='15' cy='11' r='8.5' fill='none' stroke='var(--ring)' stroke-width='2'/>", "Ring = selected or highlighted") +
+      item("<text x='15' y='15' text-anchor='middle' font-size='12' font-weight='600' fill='var(--ink)'>Aa</text>", "Bold name = funder in 2+ programs") +
+      item("<text x='15' y='15' text-anchor='middle' font-size='12' font-weight='300' fill='var(--ink-3)'>Aa</text>", "Light name = 1 program (more appear when you zoom in)") + "</div>";
+    document.getElementById("lgGrid").innerHTML = colors + progs + funds + lines;
+  }
+  drawLegend();
 
   // Highlight
   function neighbours(id) {
@@ -789,7 +819,7 @@
     "Prompt 8–11: every pop-up says “click for more info” to the right of the name.",
     "Prompt 13: when Play runs, the year shows top left at 50px, light gray Helvetica.",
     "Prompt 14–16: “funders” and “programs” buttons on the graph open lists in the right panel, sorted by number of programs then A–Z, with back buttons.",
-    "Prompt 17–20, 36, 38, 41: title “DDF Funders Network”, centered and large; program legend on its own line; “About this data” under the legend, closed on load, starting “Each dot represents”.",
+    "Prompt 17–20, 36, 38, 41: title “DDF Funders Network”, centered and large; a full legend with color, size, fill, line and label keys (sizes drawn to the graph's scale); “About this data” under the legend, closed on load, starting “Each dot represents”.",
     "Prompt 24, 39, 51, 52: funder pop-ups list program names; funder cards link programs and show endowment · Website ↗, then the bold program count on its own line; choosing a program opens its card.",
     "Prompt 40, 42, 50: clicking a dot keeps it and its neighbors highlighted with a ring; Reset clears the highlight.",
     "Prompt 47–48: bigger dots and tap targets that keep their screen size when zoomed; hollow dots mean endowment not found.",
