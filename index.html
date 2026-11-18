@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDF Funders Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f3ef; --surface: #fcfcfb; --surface-2: #efeee9;
+    --line: #dddbd3; --line-soft: #e9e7e1;
+    --ink: #151514; --ink-2: #52514e; --ink-3: #8a8983; --ink-4: #a9a8a1;
+    --hub: #151514; --edge: #c9c7bf; --edge-hot: #6f6e69;
+    --ring: #151514; --accent: #2a78d6;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 Inter, system-ui, sans-serif; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  .wrap { max-width: 1340px; margin: 0 auto; padding: 26px 22px 48px; }
+  h1 { text-align: center; font-size: clamp(30px, 4.4vw, 44px); line-height: 1.1; letter-spacing: -.02em; font-weight: 700; margin: 4px 0 20px; }
+
+  /* Controls */
+  .bar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; display: grid; gap: 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  .tabs { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; }
+  .tabs button { border: 0; background: none; padding: 5px 14px; border-radius: 999px; cursor: pointer; font-weight: 500; color: var(--ink-2); }
+  .tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: 13px; }
+  .chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .chip[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+  .field { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  select { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--surface); max-width: 340px; }
+  .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 11px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .search { position: relative; margin-left: auto; }
+  .search input { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 6px 30px; width: 230px; background: var(--surface); }
+  .search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); }
+  .sugg { position: absolute; top: calc(100% + 4px); right: 0; width: 290px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.1); z-index: 20; max-height: 300px; overflow: auto; padding: 4px; }
+  .sugg button { display: flex; width: 100%; text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; cursor: pointer; gap: 8px; align-items: center; }
+  .sugg button:hover, .sugg button.act { background: var(--surface-2); }
+  .sugg small { color: var(--ink-3); margin-left: auto; white-space: nowrap; }
+
+  /* Timeline range: two handles */
+  .range { display: flex; align-items: center; gap: 10px; flex: 1 1 360px; min-width: 260px; }
+  .range b { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; min-width: 34px; text-align: center; }
+  .track { position: relative; flex: 1; height: 26px; }
+  .track .rail, .track .fill { position: absolute; top: 11px; height: 4px; border-radius: 2px; }
+  .track .rail { left: 8px; right: 8px; background: var(--line); }
+  .track .fill { background: var(--ink-2); }
+  .track input { position: absolute; left: 0; top: 0; width: 100%; height: 26px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+  .track input::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink-2); cursor: pointer; }
+  .track input::-moz-range-thumb { pointer-events: auto; width: 13px; height: 13px; border-radius: 50%; background: var(--surface); border: 2px solid var(--ink-2); cursor: pointer; }
+  .track input::-webkit-slider-runnable-track { background: none; }
+  .track input::-moz-range-track { background: none; }
+
+  /* Layout */
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 12px; align-items: start; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .stage { position: relative; overflow: hidden; }
+  #net { display: block; width: 100%; height: auto; touch-action: none; cursor: grab; user-select: none; }
+  #net:active { cursor: grabbing; }
+  .hint { position: absolute; left: 14px; top: 12px; font-size: 12px; color: var(--ink-3); pointer-events: none; }
+  .yrmark { position: absolute; left: 16px; top: 30px; font: 300 50px/1 Helvetica, Arial, sans-serif; color: #d2d0c8; pointer-events: none; }
+  .tops { position: absolute; right: 12px; top: 10px; display: flex; gap: 6px; align-items: center; }
+  .tops .lite { border: 1px solid var(--line); background: rgba(252,252,251,.9); border-radius: 999px; padding: 3px 11px; font-size: 12.5px; cursor: pointer; color: var(--ink-2); }
+  .tops .lite b { color: var(--ink); font-weight: 600; }
+  .tops .lite:hover, .tops .lite[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tops .lite:hover b, .tops .lite[aria-pressed="true"] b { color: #fff; }
+  .zoomer { position: absolute; right: 12px; top: 46px; display: flex; flex-direction: column; gap: 4px; }
+  .zoomer button { width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 16px; }
+  .zoomer .rs { font-size: 11px; width: auto; height: 28px; padding: 0 8px; }
+
+  .legend { padding: 10px 14px 12px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--ink-2); display: grid; gap: 6px; }
+  .legend .ln { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+  .legend .k { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 18px; height: 16px; display: inline-block; }
+  details.about { margin-top: 2px; }
+  details.about summary { cursor: pointer; color: var(--ink); font-weight: 500; font-size: 12.5px; }
+  details.about .body { padding: 6px 0 2px; color: var(--ink-2); font-size: 12.5px; max-width: 900px; }
+  details.about .body p { margin: 0 0 8px; }
+  .howlink { font-size: 12.5px; }
+
+  /* Network marks */
+  .link { stroke: var(--edge); stroke-width: 1; fill: none; transition: opacity .2s; }
+  .link.hub { stroke: #8f8d86; stroke-width: 1.4; }
+  .link.unk { stroke-dasharray: 4 3; }
+  .link.hot { stroke: var(--edge-hot); stroke-opacity: .7; stroke-width: 1.5; }
+  .link.hub.hot { stroke: var(--ink); stroke-opacity: .65; stroke-width: 2; }
+  .link.lhov { stroke: var(--ink); stroke-opacity: .8; stroke-width: 2.2; }
+  .hit { stroke: transparent; stroke-width: 10; fill: none; cursor: pointer; }
+  .node { cursor: pointer; transition: opacity .2s; }
+  .node text { fill: var(--ink-3); font-weight: 300; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+  .node.multi text { fill: var(--ink); font-weight: 500; }
+  .node.prog text { fill: var(--ink); font-weight: 600; }
+  .node.prog text .sub { fill: var(--ink-3); font-weight: 400; }
+  .node.hubn text { fill: var(--ink); font-weight: 700; }
+  .node .lbl { opacity: 0; transition: opacity .15s; }
+  .node.lab .lbl, .node.prog .lbl, .node.hubn .lbl, .node.hot .lbl, .zoomed .node .lbl, .node:hover .lbl { opacity: 1; }
+  .node:hover text, .node.hot.fund text { font-weight: 500; fill: var(--ink); }
+  .node.multi:hover text, .node.hot.multi text { font-weight: 600; }
+  .node .ringH { fill: none; stroke: none; }
+  .node.hot .ringH, .node.sel .ringH { stroke: var(--ring); stroke-width: 2; }
+  .node.sel .ringH { stroke-width: 3; }
+  .node.hot.fund .pale { fill-opacity: .55; }
+  .off { opacity: 0 !important; pointer-events: none !important; }
+  .dim { opacity: .1; }
+
+  /* Side panel */
+  .detail { padding: 18px; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
+  .detail h2 { font-size: 18px; margin: 0 0 6px; line-height: 1.25; }
+  .detail h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); margin: 16px 0 6px; font-weight: 600; }
+  .detail p { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; }
+  .eyebrow { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; margin: 0 0 4px; display: flex; gap: 6px; align-items: center; }
+  .back { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; margin: 0 0 12px; font-size: 13px; }
+  .back:hover { text-decoration: underline; }
+  .close { float: right; border: 0; background: var(--surface-2); border-radius: 50%; width: 26px; height: 26px; cursor: pointer; margin-left: 8px; }
+  .detail ul { list-style: none; margin: 0; padding: 0; }
+  .detail li { padding: 6px 0; border-top: 1px solid var(--line-soft); display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+  .detail li button { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; color: var(--ink); font-weight: 500; }
+  .detail li button.thin { font-weight: 400; color: var(--ink-2); }
+  .detail li button:hover { text-decoration: underline; }
+  .detail li small { margin-left: auto; color: var(--ink-3); white-space: nowrap; }
+  .line1 { font-size: 13px; color: var(--ink-2); margin: 0 0 3px; }
+  .line1 b { color: var(--ink); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; margin: 8px 0 0; }
+  .kv dt { color: var(--ink-3); }
+  .kv dd { margin: 0; }
+  .note { background: #fff6e0; border: 1px solid #f1dfae; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; color: #5c4a14; margin-top: 10px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; transform: translateY(1px); }
+  .sq { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+  .muted { color: var(--ink-3); }
+
+  /* Findings */
+  .findings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .finding { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .finding h3 { margin: 0 0 4px; font-size: 14px; }
+  .finding p { margin: 0; color: var(--ink-2); font-size: 13px; }
+  .lnk { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; font: inherit; }
+
+  /* Table */
+  .tbl-wrap { overflow: auto; max-height: 760px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  th { font-size: 12px; color: var(--ink-3); font-weight: 600; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  th button { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+  th button[aria-sort]::after { content: " ↓"; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--bg); }
+  tbody tr.sel { background: #eaf1fb; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .pips { display: flex; gap: 3px; flex-wrap: wrap; }
+  .pip { width: 14px; height: 14px; border-radius: 4px; }
+  .barcell { display: flex; align-items: center; gap: 8px; }
+  .barcell i { height: 8px; border-radius: 4px; background: var(--ink-2); display: inline-block; }
+  .tblbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink-2); gap: 10px; flex-wrap: wrap; }
+
+  /* Timeline */
+  .tl text { font-size: 11.5px; fill: var(--ink-2); }
+  .tl .pname { fill: var(--ink); font-weight: 500; font-size: 12.5px; }
+  .tl .axis text { fill: var(--ink-3); font-size: 11px; }
+  .tl .row { cursor: pointer; }
+  .tl .row:hover rect.bg { fill: var(--bg); }
+
+  .left-out { margin-top: 12px; padding: 14px 18px; }
+  .left-out h3 { margin: 0 0 6px; font-size: 14px; }
+  .left-out li { color: var(--ink-2); font-size: 13px; margin-bottom: 4px; }
+
+  .tip { position: fixed; pointer-events: none; background: var(--ink); color: #fff; padding: 8px 11px; border-radius: 8px; font-size: 12px; max-width: 290px; z-index: 30; opacity: 0; transition: opacity .1s; line-height: 1.45; }
+  .tip .hd { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
+  .tip b { font-size: 13px; }
+  .tip .more { color: #b9b8b1; font-size: 11.5px; white-space: nowrap; }
+  .tip ul { margin: 4px 0 0; padding-left: 14px; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 40; }
+
+  @media (max-width: 1020px) {
+    .main { grid-template-columns: 1fr; }
+    .detail { position: static; max-height: none; }
+    .findings { grid-template-columns: 1fr; }
+    .search { margin-left: 0; width: 100%; }
+    .search input { width: 100%; }
+    .yrmark { font-size: 34px; }
+  }
+  @media (max-width: 700px) {
+    .hint { display: none; }
+    .yrmark { top: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DDF Funders Network</h1>
+
+  <div class="bar" role="toolbar" aria-label="View and filters">
+    <div class="row">
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button role="tab" data-view="network" aria-selected="true">Network</button>
+        <button role="tab" data-view="cofunders" aria-selected="false">Co-funders table</button>
+        <button role="tab" data-view="programs" aria-selected="false">Programs timeline</button>
+      </div>
+      <div class="chips" id="chips" aria-label="DDF program areas"></div>
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8a8983" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Find a funder or program" autocomplete="off" aria-label="Find a funder or program">
+        <div class="sugg" id="sugg" hidden></div>
+      </div>
+    </div>
+    <div class="row">
+      <label class="field">Program <select id="pick"></select></label>
+      <button class="btn" id="play" type="button" aria-label="Play timeline">▶ Play</button>
+      <div class="range" aria-label="Years shown">
+        <b id="y0v"></b>
+        <div class="track">
+          <div class="rail"></div><div class="fill" id="rfill"></div>
+          <input type="range" id="ys" min="0" step="1" aria-label="First year shown">
+          <input type="range" id="ye" min="0" step="1" aria-label="Last year shown">
+        </div>
+        <b id="y1v"></b>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div>
+      <section class="panel stage" id="v-network" aria-label="Network view">
+        <span class="hint">Click a funder or a line for details. Scroll to zoom.</span>
+        <div class="yrmark" id="yrmark" hidden></div>
+        <div class="tops">
+          <button class="lite" id="bF" aria-pressed="false"><b id="nF"></b> funders</button>
+          <button class="lite" id="bP" aria-pressed="false"><b id="nP"></b> programs</button>
+        </div>
+        <svg id="net" role="img" aria-label="Network of DDF programs and the funders that back them"></svg>
+        <div class="zoomer">
+          <button id="zin" aria-label="Zoom in">+</button>
+          <button id="zout" aria-label="Zoom out">−</button>
+          <button id="zrs" class="rs" aria-label="Reset view and highlight">Reset</button>
+        </div>
+        <div class="legend">
+          <div class="ln" id="legAreas"></div>
+          <div class="ln" id="legShapes"></div>
+          <details class="about" id="about">
+            <summary>About this data</summary>
+            <div class="body">
+              <p>Each dot represents a funder that has backed a program with the Doris Duke Foundation (DDF). Each square represents one of those programs. A line means the funder is a member of that program. It shows shared membership, not a direct relationship between funders, and not how much the funder gave, which is mostly undisclosed.</p>
+              <p>Square size is the program's amount. Amounts mean different things by program (a pledge, a goal, a first round, a cumulative total); each program's card says which. Dashed squares and dashed lines mean no amount was found. Dot size is the funder's endowment (assets under management for FY23, or total assets from tax filings, 2023–2024). Hollow dots mean no figure was found, not that the funder is small. Dot color is the DDF program area, split when a funder backs programs in more than one area.</p>
+              <p>Each program card says whether it is a pooled fund (money goes into one pot with shared decisions), a joint initiative (one effort, coordinated funding) or co-funded grants. These are judgment calls from the sources. Years are when a program was announced or reported. The two handles set the first and last year shown; Play moves the end handle forward. Research as of Nov 18, 2026.</p>
+            </div>
+          </details>
+          <div class="howlink"><button class="lnk" id="howBtn" type="button">How Claude built this network visualization?</button></div>
+        </div>
+      </section>
+
+      <section class="panel" id="v-cofunders" hidden aria-label="Co-funders table">
+        <div class="tblbar"><span id="tblNote"></span><button class="btn" id="copyCsv" type="button">Copy as CSV</button></div>
+        <div class="tbl-wrap"><table id="tbl"></table></div>
+      </section>
+
+      <section class="panel" id="v-programs" hidden aria-label="Programs timeline">
+        <div style="padding:8px 4px 4px"><svg id="tl" class="tl" width="100%"></svg></div>
+      </section>
+
+      <section class="findings" id="findings" aria-label="Key findings"></section>
+
+      <section class="panel left-out" id="how" hidden>
+        <h3>How Claude built this network visualization?</h3>
+        <p class="muted" style="font-size:13px;margin:0 0 8px">This version was rebuilt from the 55 prompts behind the <a href="https://ddf-constellation.vercel.app/how-claude-built-this.html" target="_blank" rel="noopener">original DDF Funders Network ↗</a>. Every feature those prompts asked for is kept; the research was re-run on Nov 18, 2026.</p>
+        <ul id="howList" style="padding-left:18px;margin:0"></ul>
+      </section>
+
+      <section class="panel left-out">
+        <h3>Checked and left out</h3>
+        <ul style="padding-left:18px;margin:0">
+          <li><b>Five-foundation payout pledge (June 2020).</b> DDF, Ford, Kellogg, MacArthur and Mellon pledged over $1.7B in extra grantmaking; DDF's part was up to $100M, raised by issuing bonds. Each foundation gave on its own, so it is not a pooled program. <a href="https://dorisduke.org/news--insights/articles/2020-joint-five-foundation-announcement" target="_blank" rel="noopener">Source ↗</a></li>
+          <li><b>Building Bridges.</b> Its fellowship and documentary fund are DDF-funded and run with partners (Sundance, Islamic Scholarship Fund, CAAM). No other funder was found putting money in.</li>
+          <li><b>Not fully searched:</b> DDF's full grants database. Some co-funded programs may be missing.</li>
+        </ul>
+      </section>
+    </div>
+
+    <aside class="panel detail" id="detail" aria-live="polite"></aside>
+  </div>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  // ===================== DATA =====================
+  // amt = program size in $M (null = not found). basis = what the amount means. type = pooled | joint | cofunded.
+  var P = [
+    { n: "Humanity AI", pr: "Arts", y: 2025, amt: 500, type: "pooled",
+      basis: "$500M coalition commitment over five years. First round of more than $18M in grants announced May 2026. Rockefeller Philanthropy Advisors manages the pool.",
+      src: "https://www.macfound.org/press/press-releases/humanity-ai-commits-500-million-to-build-a-people-centered-future-for-ai",
+      note: "Placed under Arts by judgment: DDF has no AI program.",
+      f: ["DDF","Ford","Lumina","Kapor","MacArthur","Mellon","Mozilla","Omidyar","Packard","Siegel Family Endowment"] },
+    { n: "Artists Make Technology", pr: "Arts", y: 2026, amt: 11, type: "joint",
+      basis: "$11M three-year goal; $6.5M committed at launch (Jan 2026), $8M raised by Oct 28, 2026. First cohort: 20 grantees, $2.75M.",
+      src: "https://www.dorisduke.org/grants/projects/artists-make-technology",
+      note: "MacArthur and Omidyar Network joined after the January launch.",
+      f: ["DDF","Mozilla","Hewlett","Ford","MacArthur","Omidyar"] },
+    { n: "DDF and Ford technology grants", pr: "Arts", y: 2026, amt: 4, type: "cofunded",
+      basis: "Five grants totaling more than $4M over five years. The split between DDF and Ford is not disclosed.",
+      src: "https://www.dorisduke.org/news/doris-duke-foundation-announces-new-grants-supporting-technology-infrastructure-in-the-performing-arts",
+      f: ["DDF","Ford"] },
+    { n: "Mosaic Network and Fund", pr: "Arts", y: 2020, amt: 4.5, type: "pooled",
+      basis: "First-round grants (2020). Funder list is the fund's full roster.",
+      src: "https://thenytrust.org/collaborative-fund/mosaic-network-and-fund",
+      f: ["DDF","Mellon","Ford","Bloomberg","Surdna","Howard Gilman","Booth Ferris","Lambent","Altman","Laurie M. Tisch Fund","Miranda Family Fund","NY Community Trust","Lily Auchincloss","Matisse Foundation","Nathan Cummings","Deutsche Bank Americas","Mertz Gilmore","Stavros Niarchos","Rockefeller Brothers","Cullman Foundation","Grantmakers in the Arts","David Rockefeller Fund","Harman Family","MacKenzie Scott","Jerome","Dreyfus Foundation"] },
+    { n: "Artist Relief", pr: "Arts", y: 2020, amt: 10, type: "pooled",
+      basis: "Initial $10M: $5M Mellon seed plus $5M from 23 foundations.",
+      src: "https://www.joanmitchellfoundation.org/uploads/pdf/Artist-Relief_Press-Release-20200408.pdf",
+      f: ["DDF","Ford","Mellon","Warhol Foundation","Mike Kelley Foundation","de Kooning Foundation","7G","Gottlieb Foundation","Amazon Literary","Arison Arts","Emily Hall Tremaine","Frankenthaler","Jerome","Joan Mitchell","Kraus Family","Knight","Neiman Foundation","Metabolic Studio","Pritzker Pucker","Salomon Family","Rauschenberg Foundation","Hostetler-Wrigley","Teiger Foundation","Wallace Foundation"] },
+    { n: "MAP Fund regranting", pr: "Arts", y: 2008, amt: 28.6, type: "joint",
+      basis: "Cumulative DDF and Mellon regranting since 2008.",
+      src: "https://mapfund.org/about/history", f: ["DDF","Mellon"] },
+    { n: "National Dance Project", pr: "Arts", y: 2025, amt: null, type: "joint",
+      basis: "Amount not found (funding reported 2025).", src: null, f: ["DDF","Mellon"] },
+    { n: "Tribal Nations Conservation Pledge", pr: "Environment", y: 2023, amt: 102.5, type: "joint",
+      basis: "$102.5M pledged over five years by 15 philanthropies; DDF's share about $32M.",
+      src: "https://www.dorisduke.org/news/doris-duke-foundation-and-partners-announce-over-100-million-for-tribal-led-conservation",
+      f: ["DDF","Alaska Conservation","Christensen Fund","Decolonizing Wealth","Moore","Grousemont","J.M. Kaplan Fund","Packard","Resources Legacy Fund","Re:wild","Walton Family","Water Foundation","Wilburforce","Hewlett","Wyss"] },
+    { n: "Catalyst Fund", pr: "Environment", y: 2019, amt: 2.5, type: "pooled",
+      basis: "Fund total as reported with the 2019 grants.",
+      src: "https://landscapeconservation.org/wp-content/uploads/2017/12/Catalyst-Fund_2019-Grants-Descriptions_Final.pdf", f: ["DDF","Hewlett"] },
+    { n: "OPT-In for Families", pr: "Child Well-being", y: 2024, amt: 33, type: "joint",
+      basis: "$33M over three years across four sites (about $9M each).",
+      src: "https://dorisduke.org/news/doris-duke-foundation-launches-new-opt-in-for-families-initiative-to-refocus-the-child-welfare-system-on-prevention",
+      f: ["DDF","Duke Endowment","Aviv"] },
+    { n: "Think of Us (Audacious Project)", pr: "Child Well-being", y: 2023, amt: 47.5, type: "pooled",
+      basis: "Audacious Project award, 2023.",
+      src: "https://www.insidephilanthropy.com/home/2024/5/22/seven-funders-working-to-improve-child-welfare-and-foster-care",
+      f: ["DDF","Casey","Hilton","Aviv","Audacious Project"] },
+    { n: "Institutional Challenge Grants (W.T. Grant)", pr: "Child Well-being", y: 2026, amt: 2.6, type: "cofunded",
+      basis: "$2.6M for four research-practice partnerships that reduce inequality in youth outcomes (May 2026).",
+      src: "https://wtgrantfoundation.org/?p=80126",
+      f: ["DDF","W.T. Grant Foundation","Casey","Bezos Family Foundation","Spencer Foundation"] },
+    { n: "Collective to Strengthen Pathways for Health Research", pr: "Medical Research", y: 2024, amt: null, type: "joint",
+      basis: "Amount not found. Funded 18 symposia in 2025; now runs the More Than Medicine campaign.",
+      src: "https://www.dorisduke.org/StrengtheningPathways",
+      note: "Open call: pre-proposals for its one-time collaborative funding opportunity are due Nov 18, 2026, 3:00 p.m. ET. DDF also lists unnamed \"additional philanthropic partners\".",
+      f: ["DDF","American Cancer Society","American Heart Assoc.","Burroughs Wellcome","Dana Foundation","Donaghue","Prebys Foundation","Robertson","Susan G. Komen"] },
+    { n: "COVID-19 Fund to Retain Clinical Scientists", pr: "Medical Research", y: 2021, amt: 12.1, type: "joint",
+      basis: "First round of grants to 22 medical schools.",
+      src: "https://www.dorisduke.org/siteassets/news--insights/2021-press-releases/11.16.21-covid19-frcs-press-release.pdf",
+      f: ["DDF","American Heart Assoc.","Burroughs Wellcome","Templeton","Rita Allen","Walder"] },
+    { n: "NYC COVID-19 Response & Impact Fund", pr: "Cross-program", y: 2020, amt: 75, type: "pooled",
+      basis: "Initial $75M from 18 lead funders (March 2020). It went on to issue over $110M to 768 New York City nonprofits, including arts groups.",
+      src: "https://thelmtif.org/news/nyc-covid-19-response-impact-fund-issued-over-110-million-in-emergency-funds-to-768-new-york-city-based-nonprofits/",
+      note: "Listed lead funders only. A longer roster of later donors is on the Nonprofit Finance Fund site.",
+      f: ["DDF","NY Community Trust","Ford","Mellon","Bloomberg","Carnegie Corporation","Joan Ganz Cooney & Holly Peterson Fund","Griffin Charitable Fund","JPB Foundation","Estée Lauder Cos. Foundation","Jennifer & Jonathan Allan Soros","Jon Stryker & Slobodan Randjelović","Revson Foundation","Robin Hood","Rockefeller Brothers","Laurie M. Tisch Fund","UJA-Federation of New York","Wells Fargo Foundation"] }
+  ];
+  // Endowment in $B: [value, basis]
+  var E = {
+    "DDF": [2.19, "FY23 AUM"], "Ford": [15.8, "FY23 AUM"], "Hewlett": [13.34, "FY23 AUM"], "MacArthur": [8.68, "FY23 AUM"],
+    "Moore": [8.77, "FY23 AUM"], "Packard": [8.33, "FY23 AUM"], "Mellon": [8.11, "FY23 AUM"], "Hilton": [7.1, "FY23 AUM"],
+    "Duke Endowment": [5.02, "2024 total assets, annual report"], "Casey": [3.44, "FY23 AUM"], "Templeton": [3.4, "FY23 AUM"],
+    "Wyss": [2.45, "FY23 AUM"], "Lumina": [1.45, "FY23 AUM"], "Rockefeller Brothers": [1.41, "FY23 AUM"], "Surdna": [1.2, "2023 total assets"],
+    "Siegel Family Endowment": [0.57, "2024 total assets"], "Nathan Cummings": [0.48, "2024 total assets"], "Omidyar": [0.39, "2023 total assets"],
+    "Warhol Foundation": [0.36, "2023 total assets"], "Altman": [0.29, "2024 total assets"], "Robertson": [0.28, "total assets, year not stated"],
+    "Frankenthaler": [0.17, "2024 total assets"], "Mozilla": [0.12, "2024 total assets"], "Kapor": [0.12, "total assets, year not stated"]
+  };
+  var WEB = {
+    "DDF":"https://www.dorisduke.org","Ford":"https://www.fordfoundation.org","Lumina":"https://www.luminafoundation.org","Kapor":"https://www.kaporcenter.org/kapor-foundation/","MacArthur":"https://www.macfound.org","Mellon":"https://www.mellon.org","Mozilla":"https://foundation.mozilla.org","Omidyar":"https://omidyar.com","Packard":"https://www.packard.org","Siegel Family Endowment":"https://siegelendowment.org","Hewlett":"https://hewlett.org","Bloomberg":"https://www.bloomberg.org","Surdna":"https://surdna.org","Howard Gilman":"https://www.howardgilman.org","Booth Ferris":"https://www.boothferris.org","Lambent":"https://www.lambentfoundation.org","Altman":"https://www.altmanfoundation.org","Laurie M. Tisch Fund":"https://thelmtif.org","NY Community Trust":"https://www.nycommunitytrust.org","Matisse Foundation":"https://matissefoundation.org","Nathan Cummings":"https://nathancummings.org","Deutsche Bank Americas":"https://country.db.com/usa/responsibility/grant-guidelines","Mertz Gilmore":"https://www.mertzgilmore.org","Stavros Niarchos":"https://www.snf.org","Rockefeller Brothers":"https://www.rbf.org","Grantmakers in the Arts":"https://www.giarts.org","David Rockefeller Fund":"https://www.davidrockefellerfund.org","MacKenzie Scott":"https://yieldgiving.com","Jerome":"https://www.jeromefdn.org","Dreyfus Foundation":"https://www.dreyfus.org","Warhol Foundation":"https://warholfoundation.org","Mike Kelley Foundation":"https://www.mikekelleyfoundation.org","de Kooning Foundation":"https://www.dekooning.org","Gottlieb Foundation":"https://www.gottliebfoundation.org","Amazon Literary":"https://www.aboutamazon.com/our-communities/community-engagement/amazon-literary-partnership","Emily Hall Tremaine":"https://www.tremainefoundation.org","Frankenthaler":"https://www.frankenthalerfoundation.org","Joan Mitchell":"https://www.joanmitchellfoundation.org","Knight":"https://knightfoundation.org","Neiman Foundation":"https://leroyneimanfoundation.org","Metabolic Studio":"https://www.metabolicstudio.org","Pritzker Pucker":"https://pritzkerpuckerfoundation.org","Rauschenberg Foundation":"https://www.rauschenbergfoundation.org","Teiger Foundation":"https://www.teigerfoundation.org","Wallace Foundation":"https://www.wallacefoundation.org","Alaska Conservation":"https://alaskaconservation.org","Christensen Fund":"https://www.christensenfund.org","Decolonizing Wealth":"https://decolonizingwealth.com","Moore":"https://www.moore.org","J.M. Kaplan Fund":"https://www.jmkfund.org","Resources Legacy Fund":"https://resourceslegacyfund.org","Re:wild":"https://www.rewild.org","Walton Family":"https://www.waltonfamilyfoundation.org","Water Foundation":"https://waterfdn.org","Wilburforce":"https://www.wilburforce.org","Wyss":"https://wyssfoundation.org","Duke Endowment":"https://www.dukeendowment.org","Aviv":"https://avivfoundation.org","Casey":"https://www.aecf.org","Hilton":"https://www.hiltonfoundation.org","Audacious Project":"https://www.audaciousproject.org","American Cancer Society":"https://www.cancer.org","American Heart Assoc.":"https://www.heart.org","Burroughs Wellcome":"https://www.bwfund.org","Dana Foundation":"https://dana.org","Donaghue":"https://donaghue.org","Robertson":"https://www.robertsonfoundation.org","Susan G. Komen":"https://www.komen.org","Templeton":"https://www.templeton.org","Rita Allen":"https://www.ritaallenfoundation.org","Walder":"https://www.walderfoundation.org",
+    "W.T. Grant Foundation":"https://wtgrantfoundation.org","Spencer Foundation":"https://www.spencer.org","Bezos Family Foundation":"https://www.bezosfamilyfoundation.org","Carnegie Corporation":"https://www.carnegie.org","Robin Hood":"https://www.robinhood.org","UJA-Federation of New York":"https://www.ujafedny.org","JPB Foundation":"https://www.jpbfoundation.org","Revson Foundation":"https://revsonfoundation.org"
+  };
+  var FULL = { "DDF":"Doris Duke Foundation","Ford":"Ford Foundation","Hewlett":"William and Flora Hewlett Foundation","MacArthur":"John D. and Catherine T. MacArthur Foundation","Moore":"Gordon and Betty Moore Foundation","Packard":"David and Lucile Packard Foundation","Mellon":"Andrew W. Mellon Foundation","Hilton":"Conrad N. Hilton Foundation","Casey":"Annie E. Casey Foundation","Templeton":"John Templeton Foundation","Wyss":"Wyss Foundation","Lumina":"Lumina Foundation","Rockefeller Brothers":"Rockefeller Brothers Fund","Surdna":"Surdna Foundation","Omidyar":"Omidyar Network","Mozilla":"Mozilla Foundation","Kapor":"Kapor Foundation","Jerome":"Jerome Foundation","Aviv":"Aviv Foundation","Knight":"John S. and James L. Knight Foundation","Burroughs Wellcome":"Burroughs Wellcome Fund","American Heart Assoc.":"American Heart Association","Duke Endowment":"The Duke Endowment","Bloomberg":"Bloomberg Philanthropies","NY Community Trust":"The New York Community Trust","Laurie M. Tisch Fund":"Laurie M. Tisch Illumination Fund","Carnegie Corporation":"Carnegie Corporation of New York","Griffin Charitable Fund":"Kenneth C. Griffin Charitable Fund","Estée Lauder Cos. Foundation":"The Estée Lauder Companies Charitable Foundation","Revson Foundation":"Charles H. Revson Foundation","Donaghue":"Donaghue Foundation","Robertson":"Robertson Foundation","Prebys Foundation":"Conrad Prebys Foundation","Spencer Foundation":"Spencer Foundation" };
+
+  // ===================== DERIVED =====================
+  var AREAS = ["Arts", "Child Well-being", "Environment", "Medical Research", "Cross-program"];
+  var DDF_AREAS = AREAS.slice(0, 4);
+  // Validated categorical palette (blue, amber, aqua, red) + neutral for the cross-program fund.
+  var COLOR = { "Arts": "#2a78d6", "Child Well-being": "#eda100", "Environment": "#1baf7a", "Medical Research": "#e34948", "Cross-program": "#8a8983" };
+  var TYPE = { pooled: "Pooled fund", joint: "Joint initiative", cofunded: "Co-funded grants" };
+  P.forEach(function (p, i) { p.id = "p" + i; });
+  var F = {};
+  P.forEach(function (p) { p.f.forEach(function (n) { if (n === "DDF") return; (F[n] = F[n] || { id: n, progs: [] }).progs.push(p); }); });
+  var funders = Object.keys(F).map(function (k) { var d = F[k]; d.areas = AREAS.filter(function (a) { return d.progs.some(function (p) { return p.pr === a; }); }); d.end = E[k] ? E[k][0] : null; return d; });
+  var YEARS = Array.from(new Set(P.map(function (p) { return p.y; }))).sort();
+  var LAST = YEARS.length - 1;
+  var fmtAmt = function (a) { return a == null ? "amount not found" : "$" + (a >= 100 ? Math.round(a) : (a % 1 ? a.toFixed(1) : a)) + "M"; };
+  var fmtEnd = function (v) { return v >= 1 ? "$" + (v >= 10 ? v.toFixed(1) : v.toFixed(2)) + "B" : "$" + Math.round(v * 1000) + "M"; };
+  var full = function (id) { return FULL[id] || id; };
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+  var host = function (u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
+  var byProgs = function (a, b) { return b.progs.length - a.progs.length || a.id.localeCompare(b.id); };
+  var plural = function (n, w) { return n + " " + w + (n === 1 ? "" : "s"); };
+  var swatch = function (d) { return d.areas.length > 1 ? "linear-gradient(90deg," + COLOR[d.areas[0]] + " 50%," + COLOR[d.areas[1]] + " 50%)" : COLOR[d.areas[0]]; };
+
+  // ===================== STATE =====================
+  var state = { on: {}, y0: 0, y1: LAST, view: "network", sortKey: "n", stack: [], picked: null };
+  AREAS.forEach(function (a) { state.on[a] = true; });
+  function progVisible(p) { return state.on[p.pr] && p.y >= YEARS[state.y0] && p.y <= YEARS[state.y1]; }
+  function visProgs(d) { return d.progs.filter(progVisible); }
+  function cur() { return state.stack[state.stack.length - 1] || null; }
+
+  // ===================== CONTROLS =====================
+  var chips = document.getElementById("chips");
+  AREAS.forEach(function (a) {
+    var b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.setAttribute("aria-pressed", "true");
+    b.innerHTML = "<i style='background:" + COLOR[a] + "'></i>" + a;
+    b.addEventListener("click", function () { state.on[a] = !state.on[a]; b.setAttribute("aria-pressed", String(state.on[a])); refresh(); });
+    chips.appendChild(b);
+  });
+  function syncChips() { Array.prototype.forEach.call(chips.children, function (c, i) { c.setAttribute("aria-pressed", String(state.on[AREAS[i]])); }); }
+
+  // Program drop-down (A–Z)
+  var pick = document.getElementById("pick");
+  pick.add(new Option("All", ""));
+  P.slice().sort(function (a, b) { return a.n.localeCompare(b.n); }).forEach(function (p) { pick.add(new Option(p.n + " (" + p.y + ", " + fmtAmt(p.amt) + ")", p.id)); });
+  pick.addEventListener("change", function () {
+    if (pick.value) open({ t: "p", id: pick.value }, { reset: true, zoom: true });
+    else { state.stack = []; resetZoom(); refresh(); }
+  });
+
+  // Two-handle year range
+  var ys = document.getElementById("ys"), ye = document.getElementById("ye"), rfill = document.getElementById("rfill");
+  var y0v = document.getElementById("y0v"), y1v = document.getElementById("y1v"), yrmark = document.getElementById("yrmark");
+  ys.max = LAST; ye.max = LAST; ys.value = 0; ye.value = LAST;
+  function syncYears() {
+    ys.value = state.y0; ye.value = state.y1;
+    y0v.textContent = YEARS[state.y0]; y1v.textContent = YEARS[state.y1]; yrmark.textContent = YEARS[state.y1];
+    var f = 1 / LAST;
+    rfill.style.left = "calc(8px + (100% - 16px) * " + (state.y0 * f) + ")";
+    rfill.style.right = "calc(8px + (100% - 16px) * " + ((LAST - state.y1) * f) + ")";
+    ys.style.zIndex = state.y0 === state.y1 && state.y0 >= LAST / 2 ? 3 : 2; ye.style.zIndex = state.y0 === state.y1 && state.y0 >= LAST / 2 ? 2 : 3;
+    ys.setAttribute("aria-valuetext", String(YEARS[state.y0])); ye.setAttribute("aria-valuetext", String(YEARS[state.y1]));
+  }
+  ys.addEventListener("input", function () { stopPlay(); state.y0 = Math.min(+ys.value, state.y1); refresh(); });
+  ye.addEventListener("input", function () { stopPlay(); state.y1 = Math.max(+ye.value, state.y0); refresh(); });
+  var playBtn = document.getElementById("play"), timer = null;
+  function stopPlay() { if (timer) clearInterval(timer); timer = null; yrmark.hidden = true; playBtn.textContent = "▶ Play"; playBtn.setAttribute("aria-label", "Play timeline"); }
+  playBtn.addEventListener("click", function () {
+    if (timer) { stopPlay(); return; }
+    if (state.y1 >= LAST) state.y1 = state.y0;
+    yrmark.hidden = false; playBtn.textContent = "❚❚ Pause"; playBtn.setAttribute("aria-label", "Pause timeline");
+    refresh();
+    timer = setInterval(function () { if (state.y1 >= LAST) { stopPlay(); return; } state.y1++; refresh(); if (state.y1 >= LAST) setTimeout(stopPlay, 900); }, 1100);
+  });
+
+  // Tabs (hash routing)
+  var tabs = document.querySelectorAll("[role=tab]");
+  function setView(v, write) {
+    if (["network", "cofunders", "programs"].indexOf(v) < 0) v = "network";
+    state.view = v;
+    tabs.forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.view === v)); });
+    ["network", "cofunders", "programs"].forEach(function (k) { document.getElementById("v-" + k).hidden = k !== v; });
+    if (write) { try { history.replaceState(null, "", "#" + v); } catch (e) {} }
+    if (v === "programs") drawTimeline();
+  }
+  tabs.forEach(function (t) { t.addEventListener("click", function () { setView(t.dataset.view, true); }); });
+  window.addEventListener("hashchange", function () { setView(location.hash.slice(1)); });
+
+  // Search
+  var q = document.getElementById("q"), sugg = document.getElementById("sugg"), act = -1, items = [];
+  var index = funders.map(function (d) { return { t: "f", id: d.id, label: d.id, alt: full(d.id), note: plural(d.progs.length, "program") }; })
+    .concat(P.map(function (p) { return { t: "p", id: p.id, label: p.n, alt: "", note: p.pr }; }));
+  function renderSugg() {
+    var s = q.value.trim().toLowerCase();
+    if (!s) { sugg.hidden = true; return; }
+    items = index.filter(function (it) { return it.label.toLowerCase().indexOf(s) >= 0 || it.alt.toLowerCase().indexOf(s) >= 0; }).slice(0, 12);
+    act = items.length ? 0 : -1;
+    sugg.innerHTML = items.length ? items.map(function (it, i) {
+      var mark = it.t === "p" ? "<span class='sq' style='background:" + COLOR[P[+it.id.slice(1)].pr] + "'></span>" : "<span class='dot' style='background:" + swatch(F[it.id]) + "'></span>";
+      return "<button data-i='" + i + "' class='" + (i === act ? "act" : "") + "'>" + mark + esc(it.label) + "<small>" + esc(it.note) + "</small></button>";
+    }).join("") : "<div style='padding:8px;color:#8a8983'>No match</div>";
+    sugg.hidden = false;
+  }
+  function choose(i) { var it = items[i]; if (!it) return; q.value = ""; sugg.hidden = true; open({ t: it.t, id: it.id }, { reset: true, zoom: true }); }
+  q.addEventListener("input", renderSugg);
+  q.addEventListener("keydown", function (e) {
+    if (sugg.hidden) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); act = (act + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length; Array.prototype.forEach.call(sugg.children, function (c, i) { c.classList.toggle("act", i === act); }); }
+    else if (e.key === "Enter") { e.preventDefault(); choose(act); }
+    else if (e.key === "Escape") sugg.hidden = true;
+  });
+  sugg.addEventListener("mousedown", function (e) { var b = e.target.closest("button"); if (b) { e.preventDefault(); choose(+b.dataset.i); } });
+  q.addEventListener("blur", function () { setTimeout(function () { sugg.hidden = true; }, 150); });
+
+  // ===================== NETWORK =====================
+  var W = 1100, H = 840;
+  var svg = d3.select("#net").attr("viewBox", [0, 0, W, H]);
+  var zl = svg.append("g"), gL = zl.append("g"), gH = zl.append("g"), gN = zl.append("g");
+  var progSide = d3.scaleSqrt().domain([0, 500]).range([18, 60]);
+  var endR = d3.scaleSqrt().domain([0, 16]).range([5, 24]);
+  var HOME = { "Arts": [0.29, 0.42], "Environment": [0.68, 0.13], "Child Well-being": [0.87, 0.45], "Medical Research": [0.78, 0.84], "Cross-program": [0.36, 0.86] };
+  var HUBXY = [0.57, 0.47];
+  function labelOf(p) { return p.n.replace("Collective to Strengthen Pathways for Health Research", "Pathways for Health Research").replace("COVID-19 Fund to Retain Clinical Scientists", "COVID-19 Clinical Scientists Fund").replace("Institutional Challenge Grants (W.T. Grant)", "W.T. Grant Challenge Grants").replace("NYC COVID-19 Response & Impact Fund", "NYC COVID-19 Response Fund"); }
+
+  var hub = { id: "DDF", t: "hub", fx: W * HUBXY[0], fy: H * HUBXY[1], x: W * HUBXY[0], y: H * HUBXY[1] };
+  var pNodes = P.map(function (p) { return { id: p.id, t: "p", p: p, s: p.amt == null ? 18 : progSide(p.amt) }; });
+  var fNodes = funders.map(function (d) { return { id: d.id, t: "f", d: d, r: d.end == null ? 6 : endR(d.end) }; });
+  var nodes = [hub].concat(pNodes, fNodes);
+  var byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+  var links = [];
+  pNodes.forEach(function (n) { links.push({ source: "DDF", target: n.id, hub: true, p: n.p }); });
+  P.forEach(function (p) { p.f.forEach(function (f) { if (f !== "DDF") links.push({ source: f, target: p.id, p: p }); }); });
+
+  function homeOf(n) {
+    if (n.t === "hub") return [W * HUBXY[0], H * HUBXY[1]];
+    if (n.t === "p") return [W * HOME[n.p.pr][0], H * HOME[n.p.pr][1]];
+    var x = 0, y = 0; n.d.areas.forEach(function (a) { x += HOME[a][0]; y += HOME[a][1]; });
+    return [W * x / n.d.areas.length, H * y / n.d.areas.length];
+  }
+  nodes.forEach(function (n, i) { if (n.t === "hub") return; var h = homeOf(n); n.x = h[0] + Math.cos(i * 2.4) * 40; n.y = h[1] + Math.sin(i * 2.4) * 40; });
+  var rad = function (n) { return n.t === "p" ? n.s * 0.72 : n.t === "hub" ? 20 : n.r; };
+  var sim = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(function (n) { return n.id; })
+      .distance(function (l) { return l.hub ? 160 : 36 + l.target.s * 0.6 + Math.min(72, l.p.f.length * 3); })
+      .strength(function (l) { return l.hub ? 0.04 : (l.source.d.progs.length > 1 ? 0.3 : 0.6); }))
+    .force("charge", d3.forceManyBody().strength(function (n) { return n.t === "p" ? -720 : -85; }).distanceMax(420))
+    .force("collide", d3.forceCollide(function (n) { return n.t === "p" ? Math.max(n.s / 2 + 22, Math.min(80, labelOf(n.p).length * 3.4)) : rad(n) + (n.t === "f" ? 7 : 18); }).iterations(3))
+    .force("x", d3.forceX(function (n) { return homeOf(n)[0]; }).strength(function (n) { return n.t === "p" ? 0.2 : 0.04; }))
+    .force("y", d3.forceY(function (n) { return homeOf(n)[1]; }).strength(function (n) { return n.t === "p" ? 0.2 : 0.04; }))
+    .stop();
+  function clampN(n) { var m = rad(n) + 8; n.x = Math.max(m + 4, Math.min(W - m - 4, n.x)); n.y = Math.max(m + 40, Math.min(H - m - 26, n.y)); }
+  for (var i = 0; i < 450; i++) { sim.tick(); nodes.forEach(clampN); }
+
+  var link = gL.selectAll("line").data(links).join("line")
+    .attr("class", function (l) { return "link" + (l.hub ? " hub" : "") + (l.hub && l.p.amt == null ? " unk" : ""); });
+  var hit = gH.selectAll("line").data(links).join("line").attr("class", "hit");
+
+  var node = gN.selectAll("g").data(nodes).join("g")
+    .attr("class", function (n) {
+      var c = "node " + (n.t === "p" ? "prog" : n.t === "hub" ? "hubn" : "fund");
+      if (n.t === "f" && n.d.progs.length > 1) c += " multi";
+      if (n.t === "f" && (n.d.progs.length > 1 || (n.d.end || 0) >= 2)) c += " lab";
+      return c;
+    })
+    .attr("tabindex", 0).attr("role", "button")
+    .attr("aria-label", function (n) { return n.t === "p" ? n.p.n + ", " + n.p.pr + ", " + n.p.y : n.t === "hub" ? "Doris Duke Foundation" : full(n.id) + ", " + plural(n.d.progs.length, "program"); });
+
+  node.each(function (n) {
+    var g = d3.select(this);
+    if (n.t === "hub") {
+      g.append("circle").attr("class", "ringH").attr("r", 25);
+      g.append("circle").attr("r", 20).attr("fill", "var(--hub)").attr("stroke", "#fff").attr("stroke-width", 3);
+      g.append("text").attr("class", "lbl").attr("y", 38).attr("text-anchor", "middle").style("font-size", "13px").text("Doris Duke Foundation");
+    } else if (n.t === "p") {
+      var s = n.s, c = COLOR[n.p.pr], unk = n.p.amt == null;
+      g.append("rect").attr("class", "ringH").attr("x", -s / 2 - 5).attr("y", -s / 2 - 5).attr("width", s + 10).attr("height", s + 10).attr("rx", 8);
+      g.append("rect").attr("x", -s / 2).attr("y", -s / 2).attr("width", s).attr("height", s).attr("rx", 5)
+        .attr("fill", unk ? "#fff" : c).attr("stroke", unk ? c : "#fff").attr("stroke-width", 2).attr("stroke-dasharray", unk ? "4 3" : null);
+      if (n.p.type === "pooled") g.append("circle").attr("r", Math.max(2.5, s * 0.09)).attr("fill", unk ? c : "#fff").attr("pointer-events", "none");
+      var t = g.append("text").attr("class", "lbl").attr("text-anchor", "middle").attr("y", s / 2 + 3).style("font-size", "11.5px");
+      t.append("tspan").attr("x", 0).attr("dy", "1em").text(labelOf(n.p));
+      t.append("tspan").attr("class", "sub").attr("x", 0).attr("dy", "1.2em").text(n.p.y + " · " + fmtAmt(n.p.amt).replace("amount ", ""));
+    } else {
+      var r = n.r, ar = n.d.areas, pale = n.d.end == null;
+      g.append("circle").attr("class", "ringH").attr("r", r + 3.5);
+      if (ar.length === 1) {
+        g.append("circle").attr("class", pale ? "pale" : null).attr("r", r).attr("fill", COLOR[ar[0]]).attr("fill-opacity", pale ? 0.12 : 1)
+          .attr("stroke", pale ? COLOR[ar[0]] : "#fff").attr("stroke-width", pale ? 1.6 : 1.5);
+      } else {
+        d3.pie().sort(null).value(1)(ar).forEach(function (a) {
+          g.append("path").attr("class", pale ? "pale" : null).attr("d", d3.arc().innerRadius(0).outerRadius(r)(a)).attr("fill", COLOR[a.data]).attr("fill-opacity", pale ? 0.3 : 1);
+        });
+        g.append("circle").attr("r", r).attr("fill", "none").attr("stroke", pale ? COLOR[ar[0]] : "#fff").attr("stroke-width", 1.5);
+      }
+      g.append("circle").attr("class", "tap").attr("r", Math.max(r + 4, 10)).attr("fill", "transparent");
+      g.append("text").attr("class", "lbl").attr("text-anchor", "middle").attr("y", -r - 5).style("font-size", "10.5px").text(n.id);
+    }
+  });
+
+  function draw() {
+    [link, hit].forEach(function (s) {
+      s.attr("x1", function (l) { return l.source.x; }).attr("y1", function (l) { return l.source.y; })
+       .attr("x2", function (l) { return l.target.x; }).attr("y2", function (l) { return l.target.y; });
+    });
+    node.attr("transform", function (n) { return "translate(" + n.x + "," + n.y + ")"; });
+  }
+  draw();
+
+  // Drag one node at a time (layout is pre-computed, so the picture stays put).
+  var dragged = false;
+  node.call(d3.drag()
+    .on("start", function () { dragged = false; hideTip(); })
+    .on("drag", function (ev, n) { if (n.t === "hub") return; dragged = true; n.x = ev.x; n.y = ev.y; draw(); }));
+
+  // Zoom: label size and tap targets hold steady on screen.
+  var kNow = 1, small = window.matchMedia("(max-width: 700px)").matches;
+  function screenFix() {
+    var svgW = svg.node().getBoundingClientRect().width || W, px = W / svgW; // viewBox units per screen px
+    var k = Math.pow(kNow, 0.85);
+    node.selectAll("text").style("font-size", function () { return (this.__b || (this.__b = parseFloat(this.style.fontSize))) / k + "px"; });
+    node.filter(function (n) { return n.t === "f"; }).select(".tap").attr("r", function (n) { return Math.max(n.r + 4, (small ? 16 : 10) * px / kNow); });
+    hit.attr("stroke-width", 10 * px / kNow);
+  }
+  var zoom = d3.zoom().scaleExtent([0.8, 6]).extent([[0, 0], [W, H]]).translateExtent([[-250, -250], [W + 250, H + 250]])
+    .on("zoom", function (ev) { zl.attr("transform", ev.transform); kNow = ev.transform.k; svg.classed("zoomed", kNow >= 1.9); screenFix(); });
+  svg.call(zoom).on("dblclick.zoom", null);
+  window.addEventListener("resize", function () { small = window.matchMedia("(max-width: 700px)").matches; screenFix(); if (state.view === "programs") drawTimeline(); });
+  screenFix();
+  function resetZoom() { svg.transition().duration(350).call(zoom.transform, d3.zoomIdentity); }
+  document.getElementById("zin").onclick = function () { svg.transition().duration(220).call(zoom.scaleBy, 1.5); };
+  document.getElementById("zout").onclick = function () { svg.transition().duration(220).call(zoom.scaleBy, 1 / 1.5); };
+  document.getElementById("zrs").onclick = function () { resetZoom(); state.stack = []; state.picked = null; pick.value = ""; refresh(); };
+  function fitTo(ids) {
+    var pts = nodes.filter(function (n) { return ids[n.id]; });
+    if (pts.length < 2) return;
+    var x0 = d3.min(pts, function (n) { return n.x; }) - 90, x1 = d3.max(pts, function (n) { return n.x; }) + 90;
+    var yA = d3.min(pts, function (n) { return n.y; }) - 70, yB = d3.max(pts, function (n) { return n.y; }) + 70;
+    var k = Math.max(1, Math.min(small ? 3.2 : 2.6, 0.92 * Math.min(W / (x1 - x0), H / (yB - yA))));
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(W / 2, H / 2).scale(k).translate(-(x0 + x1) / 2, -(yA + yB) / 2));
+  }
+
+  // Legend
+  document.getElementById("legAreas").innerHTML = AREAS.map(function (a) { return "<span class='k'><span class='sq' style='background:" + COLOR[a] + "'></span>" + a + (a === "Cross-program" ? " <span class='muted'>(not one DDF area)</span>" : "") + "</span>"; }).join("");
+  document.getElementById("legShapes").innerHTML =
+    "<span class='k'><svg viewBox='0 0 18 16'><rect x='2' y='1' width='14' height='14' rx='3' fill='#b5b3ab'/></svg>program · size = amount</span>" +
+    "<span class='k'><svg viewBox='0 0 18 16'><rect x='2' y='1' width='14' height='14' rx='3' fill='#b5b3ab'/><circle cx='9' cy='8' r='2.2' fill='#fff'/></svg>pooled fund</span>" +
+    "<span class='k'><svg viewBox='0 0 18 16'><rect x='2' y='1' width='14' height='14' rx='3' fill='#fff' stroke='#8a8983' stroke-width='1.5' stroke-dasharray='3 2'/></svg>amount not found</span>" +
+    "<span class='k'><svg viewBox='0 0 18 16'><circle cx='6' cy='8' r='3' fill='#8a8983'/><circle cx='13' cy='8' r='5' fill='#8a8983'/></svg>funder · size = endowment</span>" +
+    "<span class='k'><svg viewBox='0 0 18 16'><circle cx='9' cy='8' r='5' fill='#8a8983' fill-opacity='.12' stroke='#8a8983' stroke-width='1.5'/></svg>endowment not found</span>";
+
+  // Highlight
+  function neighbours(id) {
+    var s = {}; s[id] = 1; var n = byId[id];
+    if (n.t === "p") n.p.f.forEach(function (f) { s[f] = 1; });
+    else if (n.t === "f") { n.d.progs.forEach(function (p) { s[p.id] = 1; }); s.DDF = 1; }
+    else pNodes.forEach(function (p) { s[p.id] = 1; });
+    return s;
+  }
+  function linkIn(l, id) {
+    var n = byId[id];
+    if (n.t === "p") return l.p === n.p;
+    if (n.t === "f") return l.source.id === id || (l.hub && n.d.progs.indexOf(l.p) >= 0);
+    return l.hub;
+  }
+  function isVisible(n) { return n.t === "hub" ? true : n.t === "p" ? progVisible(n.p) : visProgs(n.d).length > 0; }
+  var hoverId = null, hoverLink = null;
+  function focusId() { var c = cur(); return hoverId || (c && (c.t === "f" || c.t === "p" || c.t === "hub") ? c.id : null); }
+  function paint() {
+    var focus = focusId(), nb = focus ? neighbours(focus) : null, c = cur(), selId = c && c.id;
+    node.classed("off", function (n) { return !isVisible(n); })
+        .classed("dim", function (n) { return !!nb && !nb[n.id]; })
+        .classed("hot", function (n) { return !!nb && !!nb[n.id] && n.id !== focus; })
+        .classed("sel", function (n) { return n.id === focus || n.id === selId; });
+    link.classed("off", function (l) { return !progVisible(l.p); })
+        .classed("dim", function (l) { return !!nb && !linkIn(l, focus); })
+        .classed("hot", function (l) { return !!nb && linkIn(l, focus); })
+        .classed("lhov", function (l) { return l === hoverLink; });
+    hit.classed("off", function (l) { return !progVisible(l.p); });
+  }
+
+  // Tooltips
+  var tip = document.getElementById("tip");
+  function showTip(ev, html) { tip.innerHTML = html; tip.style.opacity = 1; moveTip(ev); }
+  function moveTip(ev) { var x = ev.clientX + 14, y = ev.clientY + 14; if (x + 300 > window.innerWidth) x = ev.clientX - 300; if (y + 160 > window.innerHeight) y = ev.clientY - 150; tip.style.left = x + "px"; tip.style.top = y + "px"; }
+  function hideTip() { tip.style.opacity = 0; }
+  var more = "<span class='more'>click for more info</span>";
+  function tipFor(n) {
+    if (n.t === "hub") return "<div class='hd'><b>Doris Duke Foundation</b>" + more + "</div>Endowment " + fmtEnd(2.19) + " · in all " + P.length + " programs";
+    if (n.t === "p") return "<div class='hd'><b>" + esc(n.p.n) + "</b>" + more + "</div>" + n.p.pr + " · " + n.p.y + " · " + fmtAmt(n.p.amt) + "<br>" + TYPE[n.p.type] + " · " + plural(n.p.f.length - 1, "other funder");
+    var d = n.d;
+    return "<div class='hd'><b>" + esc(full(d.id)) + "</b>" + more + "</div>Endowment " + (d.end != null ? fmtEnd(d.end) : "not found") +
+      "<br>" + plural(d.progs.length, "program") + " with DDF:<ul>" + d.progs.map(function (p) { return "<li>" + esc(p.n) + "</li>"; }).join("") + "</ul>";
+  }
+  node.on("mouseenter", function (ev, n) { hoverId = n.id; paint(); showTip(ev, tipFor(n)); })
+      .on("mousemove", moveTip)
+      .on("mouseleave", function () { hoverId = null; paint(); hideTip(); })
+      .on("click", function (ev, n) { ev.stopPropagation(); if (dragged) return; open({ t: n.t, id: n.id }, { reset: true }); })
+      .on("keydown", function (ev, n) { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open({ t: n.t, id: n.id }, { reset: true }); } });
+  hit.on("mouseenter", function (ev, l) { hoverLink = l; paint(); showTip(ev, l.hub
+        ? "<div class='hd'><b>DDF → " + esc(l.p.n) + "</b>" + more + "</div>" + fmtAmt(l.p.amt) + " · " + esc(l.p.basis)
+        : "<div class='hd'><b>" + esc(l.source.id) + " → " + esc(l.p.n) + "</b>" + more + "</div>" + l.p.y + " · " + fmtAmt(l.p.amt) + " · " + TYPE[l.p.type]); })
+     .on("mousemove", moveTip)
+     .on("mouseleave", function () { hoverLink = null; paint(); hideTip(); })
+     .on("click", function (ev, l) { ev.stopPropagation(); open({ t: "p", id: l.p.id, via: l.hub ? null : l.source.id }, { reset: true }); });
+  svg.on("click", function () { if (state.stack.length) { state.stack = []; pick.value = ""; refresh(); } });
+
+  // ===================== SIDE PANEL =====================
+  var detail = document.getElementById("detail");
+  var bF = document.getElementById("bF"), bP = document.getElementById("bP");
+  bF.onclick = function () { open({ t: "flist" }, { reset: true }); };
+  bP.onclick = function () { open({ t: "plist" }, { reset: true }); };
+
+  function open(entry, opt) {
+    opt = opt || {};
+    if (opt.reset) state.stack = [];
+    state.stack.push(entry);
+    if (entry.t === "p") {
+      var p = byId[entry.id].p;
+      if (!progVisible(p)) { state.on[p.pr] = true; syncChips(); if (p.y < YEARS[state.y0]) state.y0 = YEARS.indexOf(p.y); if (p.y > YEARS[state.y1]) state.y1 = YEARS.indexOf(p.y); stopPlay(); }
+      pick.value = entry.id;
+    } else if (entry.t !== "flist" && entry.t !== "plist") pick.value = "";
+    if (entry.t === "f" && !visProgs(F[entry.id]).length) { AREAS.forEach(function (a) { state.on[a] = true; }); syncChips(); state.y0 = 0; state.y1 = LAST; stopPlay(); }
+    refresh();
+    if (opt.zoom && state.view === "network" && (entry.t === "p" || entry.t === "f")) fitTo(neighbours(entry.id));
+    if (window.innerWidth < 1020 && opt.scroll !== false && (entry.t === "f" || entry.t === "p")) {}
+  }
+  function back() { state.stack.pop(); var c = cur(); pick.value = c && c.t === "p" ? c.id : ""; refresh(); }
+  function backLabel() {
+    var prev = state.stack[state.stack.length - 2];
+    if (!prev) return null;
+    if (prev.t === "flist") return "Back to funders list";
+    if (prev.t === "plist") return "Back to programs list";
+    if (prev.t === "p") return "Back to program";
+    if (prev.t === "f") return "Back to " + prev.id;
+    if (prev.t === "hub") return "Back to Doris Duke Foundation";
+    return "Back";
+  }
+  function progLi(p) {
+    return "<li><span class='sq' style='background:" + COLOR[p.pr] + "'></span><button data-p='" + p.id + "'>" + esc(p.n) + "</button><small>" + p.y + " · " + fmtAmt(p.amt).replace("amount ", "") + "</small></li>";
+  }
+  function funderLi(id) {
+    var d = F[id], n = d.progs.length;
+    return "<li><span class='dot' style='background:" + swatch(d) + "'></span><button data-f='" + esc(id) + "' class='" + (n > 1 ? "" : "thin") + "'>" + esc(id) + "</button><small>" + [n > 1 ? plural(n, "program") : "", d.end != null ? fmtEnd(d.end) : ""].filter(Boolean).join(" · ") + "</small></li>";
+  }
+  function renderDetail() {
+    var c = cur(), h = "", bl = backLabel();
+    var top = bl ? "<button class='back' data-act='back'>‹ " + esc(bl) + "</button>" : "";
+    var x = c ? "<button class='close' data-act='close' aria-label='Close'>×</button>" : "";
+    bF.setAttribute("aria-pressed", String(!!c && c.t === "flist")); bP.setAttribute("aria-pressed", String(!!c && c.t === "plist"));
+    if (!c) {
+      var rep = funders.filter(function (d) { return d.progs.length > 1; }).sort(byProgs);
+      h = "<h2>Who funds alongside DDF?</h2><p>" + P.length + " programs in which DDF is a named funder, and the " + funders.length + " other funders that back them. Click a dot, a square or a line, or use the buttons on the graph.</p>" +
+          "<h4>Repeat co-funders (" + rep.length + ")</h4><ul>" + rep.map(function (d) { return funderLi(d.id); }).join("") + "</ul>";
+    } else if (c.t === "flist") {
+      var vis = funders.filter(function (d) { return visProgs(d).length; }).sort(byProgs);
+      h = x + "<h2>" + vis.length + " funders</h2><ul>" + vis.map(function (d) { return funderLi(d.id); }).join("") + "</ul>";
+    } else if (c.t === "plist") {
+      var vp = P.filter(progVisible).sort(function (a, b) { return a.n.localeCompare(b.n); });
+      h = x + "<h2>" + vp.length + " programs</h2><ul>" + vp.map(progLi).join("") + "</ul>";
+    } else if (c.t === "p") {
+      var p = byId[c.id].p, co = p.f.filter(function (f) { return f !== "DDF"; }).sort(function (a, b) { return byProgs(F[a], F[b]); });
+      h = x + top + "<p class='eyebrow'><span class='sq' style='background:" + COLOR[p.pr] + "'></span>" + esc(p.pr) + " <span class='tag'>" + TYPE[p.type] + "</span></p><h2>" + esc(p.n) + "</h2>" +
+          "<p class='line1'><b>" + fmtAmt(p.amt) + "</b> · " + p.y + (p.src ? " · <a href='" + esc(p.src) + "' target='_blank' rel='noopener'>Source ↗</a>" : " · <span class='muted'>no source link</span>") + "</p>" +
+          "<p>" + esc(p.basis) + "</p>" + (p.note ? "<div class='note'>" + esc(p.note) + "</div>" : "") +
+          "<h4>Funders with DDF (" + co.length + ")</h4><ul>" + co.map(funderLi).join("") + "</ul>";
+    } else if (c.t === "f") {
+      var d = F[c.id], others = {};
+      d.progs.forEach(function (p) { p.f.forEach(function (o) { if (o !== "DDF" && o !== d.id) others[o] = (others[o] || 0) + 1; }); });
+      var oAll = Object.keys(others), shared = oAll.filter(function (o) { return others[o] > 1; }).sort(function (a, b) { return others[b] - others[a] || a.localeCompare(b); });
+      var bridges = d.areas.filter(function (a) { return a !== "Cross-program"; }).length > 1;
+      h = x + top + "<p class='eyebrow'><span class='dot' style='background:" + swatch(d) + "'></span>Funder" + (bridges ? " <span class='tag'>bridges " + esc(d.areas.filter(function (a) { return a !== "Cross-program"; }).join(" + ")) + "</span>" : "") + "</p><h2>" + esc(full(d.id)) + "</h2>" +
+          "<p class='line1'>Endowment " + (d.end != null ? "<b>" + fmtEnd(d.end) + "</b> <span class='muted'>(" + esc(E[d.id][1]) + ")</span>" : "<span class='muted'>not found</span>") +
+          (WEB[d.id] ? " · <a href='" + esc(WEB[d.id]) + "' target='_blank' rel='noopener'>Website ↗</a>" : "") + "</p>" +
+          "<p class='line1'><b>" + d.progs.length + "</b> " + (d.progs.length === 1 ? "program" : "programs") + " with DDF</p>" +
+          "<h4>Programs</h4><ul>" + d.progs.slice().sort(function (a, b) { return b.y - a.y; }).map(progLi).join("") + "</ul>" +
+          (shared.length ? "<h4>Repeat partners (" + shared.length + ")</h4><ul>" + shared.map(function (o) { return "<li><span class='dot' style='background:" + swatch(F[o]) + "'></span><button data-f='" + esc(o) + "'>" + esc(o) + "</button><small>" + others[o] + " programs together</small></li>"; }).join("") + "</ul>" : "") +
+          "<p style='margin-top:12px' class='muted'>In programs with " + plural(oAll.length, "other funder") + ".</p>";
+    } else if (c.t === "hub") {
+      h = x + top + "<p class='eyebrow'>Hub</p><h2>Doris Duke Foundation</h2><p class='line1'>Endowment <b>$2.19B</b> <span class='muted'>(FY23 AUM)</span> · <a href='https://www.dorisduke.org' target='_blank' rel='noopener'>Website ↗</a></p><p class='line1'><b>" + P.length + "</b> programs with other funders</p><h4>Programs</h4><ul>" + P.slice().sort(function (a, b) { return b.y - a.y; }).map(progLi).join("") + "</ul>";
+    }
+    detail.innerHTML = h;
+  }
+  detail.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.act === "back") back();
+    else if (b.dataset.act === "close") { state.stack = []; pick.value = ""; refresh(); }
+    else if (b.dataset.p) open({ t: "p", id: b.dataset.p }, { zoom: true });
+    else if (b.dataset.f) open({ t: "f", id: b.dataset.f }, { zoom: true });
+  });
+
+  // ===================== FINDINGS =====================
+  (function () {
+    var known = P.filter(function (p) { return p.amt != null; }), total = d3.sum(known, function (p) { return p.amt; });
+    var top = funders.slice().sort(byProgs), once = funders.filter(function (d) { return d.progs.length === 1; }).length;
+    var pooled = P.filter(function (p) { return p.type === "pooled"; }).length;
+    document.getElementById("findings").innerHTML = [
+      "<div class='finding'><h3>Two partners recur most</h3><p><button class='lnk' data-f='Ford'>Ford</button> and <button class='lnk' data-f='Mellon'>Mellon</button> each join DDF in " + F.Ford.progs.length + " programs, mostly in Arts. " + once + " of " + funders.length + " co-funders appear only once.</p></div>",
+      "<div class='finding'><h3>Hewlett and Packard bridge areas</h3><p>They are the only co-funders in two DDF program areas (Arts and Environment). Child Well-being and Medical Research have their own separate funder circles.</p></div>",
+      "<div class='finding'><h3>One program dominates the dollars</h3><p><button class='lnk' data-p='p0'>Humanity AI</button> ($500M) is " + Math.round(100 * 500 / total) + "% of the $" + Math.round(total) + "M known total. Only " + pooled + " of " + P.length + " programs are true pooled funds.</p></div>"
+    ].join("");
+    document.getElementById("findings").addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      setView("network", true);
+      if (b.dataset.f) open({ t: "f", id: b.dataset.f }, { reset: true, zoom: true });
+      if (b.dataset.p) open({ t: "p", id: b.dataset.p }, { reset: true, zoom: true });
+    });
+  })();
+
+  // How it was built
+  var HOW = [
+    "Prompt 1–2, 45: re-ran the research. Added the NYC COVID-19 Response & Impact Fund (in the original spreadsheet, missing from the graph), W.T. Grant Institutional Challenge Grants (May 2026) and Prebys Foundation; updated Artists Make Technology and Humanity AI; kept official names (Dana Foundation, Susan G. Komen, Collective to Strengthen Pathways for Health Research).",
+    "Prompt 4, 21, 23, 29: labels are only slightly bolder on hover; funders in 2+ programs are bold, funders in one program are lighter and thinner.",
+    "Prompt 6, 28, 49: highlighted lines are gray, not white, and faint lines stay faint.",
+    "Prompt 7, 47: hovering a line shows a pop-up; lines have wider invisible hit areas.",
+    "Prompt 8–11: every pop-up says “click for more info” to the right of the name.",
+    "Prompt 13: when Play runs, the year shows top left at 50px, light gray Helvetica.",
+    "Prompt 14–16: “funders” and “programs” buttons on the graph open lists in the right panel, sorted by number of programs then A–Z, with back buttons.",
+    "Prompt 17–20, 36, 38, 41: title “DDF Funders Network”, centered and large; program legend on its own line; “About this data” under the legend, closed on load, starting “Each dot represents”.",
+    "Prompt 24, 39, 51, 52: funder pop-ups list program names; funder cards link programs and show endowment · Website ↗, then the bold program count on its own line; choosing a program opens its card.",
+    "Prompt 40, 42, 50: clicking a dot keeps it and its neighbors highlighted with a ring; Reset clears the highlight.",
+    "Prompt 47–48: bigger dots and tap targets that keep their screen size when zoomed; hollow dots mean endowment not found.",
+    "New in this version: programs are drawn as squares so lines show real membership; Co-funders table (copy as CSV) and Programs timeline views; search; pooled vs joint labels; key findings; a list of what was checked and left out."
+  ];
+  document.getElementById("howList").innerHTML = HOW.map(function (t) { return "<li style='margin-bottom:5px'>" + esc(t) + "</li>"; }).join("");
+  document.getElementById("howBtn").onclick = function () { var s = document.getElementById("how"); s.hidden = !s.hidden; if (!s.hidden) s.scrollIntoView({ behavior: "smooth", block: "start" }); };
+
+  // ===================== TABLE =====================
+  var tbl = document.getElementById("tbl");
+  var maxEnd = d3.max(funders, function (d) { return d.end || 0; });
+  function tableRows() {
+    var rows = funders.filter(function (d) { return visProgs(d).length > 0; }), k = state.sortKey;
+    rows.sort(function (a, b) {
+      if (k === "name") return a.id.localeCompare(b.id);
+      if (k === "end") return (b.end == null ? -1 : b.end) - (a.end == null ? -1 : a.end) || a.id.localeCompare(b.id);
+      return visProgs(b).length - visProgs(a).length || a.id.localeCompare(b.id);
+    });
+    return rows;
+  }
+  function drawTable() {
+    var rows = tableRows(), k = state.sortKey, c = cur();
+    document.getElementById("tblNote").textContent = rows.length + " funders in the programs shown. Click a row for details.";
+    var th = function (key, label) { return "<th><button data-k='" + key + "'" + (k === key ? " aria-sort='descending'" : "") + ">" + label + "</button></th>"; };
+    tbl.innerHTML = "<thead><tr><th>#</th>" + th("name", "Funder") + th("n", "Programs with DDF") + "<th>Which ones</th>" + th("end", "Endowment") + "<th>Website</th></tr></thead><tbody>" +
+      rows.map(function (d, i) {
+        var vp = visProgs(d);
+        return "<tr data-f='" + esc(d.id) + "'" + (c && c.t === "f" && c.id === d.id ? " class='sel'" : "") + "><td class='muted num'>" + (i + 1) + "</td><td><b style='font-weight:" + (d.progs.length > 1 ? 600 : 400) + "'>" + esc(full(d.id)) + "</b></td>" +
+          "<td class='num'>" + vp.length + "</td>" +
+          "<td><div class='pips'>" + vp.map(function (p) { return "<span class='pip' title='" + esc(p.n + " (" + p.y + ")") + "' style='background:" + COLOR[p.pr] + "'></span>"; }).join("") + "</div></td>" +
+          "<td class='num'>" + (d.end != null ? "<div class='barcell'><i style='width:" + Math.max(3, 90 * d.end / maxEnd) + "px'></i>" + fmtEnd(d.end) + "</div>" : "<span class='muted'>not found</span>") + "</td>" +
+          "<td>" + (WEB[d.id] ? "<a href='" + esc(WEB[d.id]) + "' target='_blank' rel='noopener'>" + esc(host(WEB[d.id])) + "</a>" : "<span class='muted'>—</span>") + "</td></tr>";
+      }).join("") + "</tbody>";
+  }
+  tbl.addEventListener("click", function (e) {
+    if (e.target.closest("a")) return;
+    var b = e.target.closest("th button"); if (b) { state.sortKey = b.dataset.k; drawTable(); return; }
+    var tr = e.target.closest("tr[data-f]"); if (tr) open({ t: "f", id: tr.dataset.f }, { reset: true });
+  });
+  var toast = document.getElementById("toast");
+  function say(t) { toast.textContent = t; toast.style.opacity = 1; setTimeout(function () { toast.style.opacity = 0; }, 2200); }
+  document.getElementById("copyCsv").onclick = function () {
+    var q2 = function (s) { s = s == null ? "" : String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var lines = [["Funder", "Full name", "Programs with DDF", "Program names", "DDF program areas", "Endowment ($B)", "Endowment basis", "Website"].join(",")];
+    tableRows().forEach(function (d) { lines.push([d.id, full(d.id), d.progs.length, d.progs.map(function (p) { return p.n; }).join("; "), d.areas.join("; "), d.end, E[d.id] ? E[d.id][1] : "", WEB[d.id] || ""].map(q2).join(",")); });
+    navigator.clipboard.writeText(lines.join("\n")).then(function () { say("Copied " + (lines.length - 1) + " rows. Paste into a spreadsheet."); }, function () { say("Copy was blocked by the browser."); });
+  };
+
+  // ===================== TIMELINE =====================
+  function drawTimeline() {
+    var el = document.getElementById("tl"), w = Math.max(560, el.parentNode.clientWidth - 8), rowH = 46, m = { l: Math.min(310, w * 0.38), r: 80, t: 34, b: 14 };
+    var rows = P.filter(progVisible).sort(function (a, b) { return a.y - b.y || (b.amt || 0) - (a.amt || 0); });
+    var h = m.t + Math.max(1, rows.length) * rowH + m.b, c = cur();
+    var s = d3.select(el).attr("viewBox", [0, 0, w, h]).attr("height", h); s.selectAll("*").remove();
+    var x = d3.scaleLinear().domain([2007, 2027]).range([m.l, w - m.r]), r = d3.scaleSqrt().domain([0, 500]).range([3, 24]);
+    s.append("g").attr("class", "axis").attr("transform", "translate(0," + (m.t - 10) + ")")
+      .call(d3.axisTop(x).ticks(Math.min(10, w / 80)).tickFormat(d3.format("d")).tickSize(-(h - m.t)))
+      .call(function (g) { g.select(".domain").remove(); g.selectAll(".tick line").attr("stroke", "var(--line-soft)"); });
+    if (!rows.length) { s.append("text").attr("x", 14).attr("y", m.t + 20).text("No programs in this range."); return; }
+    var g = s.selectAll("g.row").data(rows).join("g").attr("class", "row").attr("transform", function (d, i) { return "translate(0," + (m.t + i * rowH) + ")"; })
+      .on("click", function (ev, p) { open({ t: "p", id: p.id }, { reset: true }); })
+      .on("mouseenter", function (ev, p) { showTip(ev, "<div class='hd'><b>" + esc(p.n) + "</b>" + more + "</div>" + esc(p.basis)); })
+      .on("mousemove", moveTip).on("mouseleave", hideTip);
+    g.append("rect").attr("class", "bg").attr("width", w).attr("height", rowH).attr("fill", function (p) { return c && c.id === p.id ? "#eaf1fb" : "transparent"; });
+    g.append("rect").attr("x", 12).attr("y", rowH / 2 - 9).attr("width", 10).attr("height", 10).attr("rx", 2).attr("fill", function (p) { return COLOR[p.pr]; });
+    var maxCh = Math.floor((m.l - 40) / 6.6);
+    g.append("text").attr("class", "pname").attr("x", 30).attr("y", rowH / 2 - 1).text(function (p) { var t = labelOf(p); return t.length > maxCh ? t.slice(0, maxCh - 1) + "…" : t; });
+    g.append("text").attr("x", 30).attr("y", rowH / 2 + 14).attr("fill", "var(--ink-3)").text(function (p) { return TYPE[p.type] + " · " + plural(p.f.length - 1, "other funder"); });
+    g.append("line").attr("x1", m.l).attr("x2", function (p) { return x(p.y); }).attr("y1", rowH / 2).attr("y2", rowH / 2).attr("stroke", "var(--line)");
+    var rr = function (p) { return p.amt == null ? 6 : Math.max(5, r(p.amt)); };
+    g.append("circle").attr("cx", function (p) { return x(p.y); }).attr("cy", rowH / 2).attr("r", rr)
+      .attr("fill", function (p) { return p.amt == null ? "#fff" : COLOR[p.pr]; }).attr("stroke", function (p) { return p.amt == null ? COLOR[p.pr] : "#fff"; })
+      .attr("stroke-width", 2).attr("stroke-dasharray", function (p) { return p.amt == null ? "3 2" : null; });
+    g.append("text").attr("x", function (p) { return x(p.y) + rr(p) + 6; }).attr("y", rowH / 2 + 4).style("font-weight", 600).attr("fill", "var(--ink)")
+      .text(function (p) { return p.amt == null ? "not found" : fmtAmt(p.amt); });
+  }
+
+  // ===================== REFRESH =====================
+  function refresh() {
+    syncYears();
+    document.getElementById("nF").textContent = funders.filter(function (d) { return visProgs(d).length; }).length;
+    document.getElementById("nP").textContent = P.filter(progVisible).length;
+    paint(); renderDetail(); drawTable();
+    if (state.view === "programs") drawTimeline();
+  }
+  setView(location.hash.slice(1) || "network");
+  refresh();
+})();
+</script>
+</body>
+</html>
